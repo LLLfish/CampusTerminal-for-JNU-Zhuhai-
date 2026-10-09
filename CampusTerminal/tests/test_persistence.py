@@ -79,6 +79,20 @@ class PersistenceTests(unittest.TestCase):
         store.save_password("")
         self.assertEqual(store.load_password(), "keep-this-secret")
 
+    def test_update_checks_default_off_and_persist_opt_in(self):
+        self.assertFalse(store.load()["auto_check_update"])
+        store.save({"auto_check_update": True, "account": "kept-account"})
+        self.assertTrue(store.load()["auto_check_update"])
+        self.assertEqual(store.load()["account"], "kept-account")
+        store.save({**store.load(), "auto_check_update": False})
+        self.assertFalse(store.load()["auto_check_update"])
+
+    def test_old_settings_without_update_preference_stay_opted_out(self):
+        store.SETTINGS_PATH.write_bytes(store._protect(json.dumps({"account": "legacy", "save_account": True})))
+        data = store.load()
+        self.assertFalse(data["auto_check_update"])
+        self.assertEqual(data["account"], "legacy")
+
 
 if __name__ == "__main__":
     unittest.main()

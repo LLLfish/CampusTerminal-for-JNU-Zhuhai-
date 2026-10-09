@@ -44,6 +44,25 @@ class ShutdownAdmissionTests(unittest.TestCase):
         client = BackendClient(ROOT)
         self.assertTrue(client.wait_until_stopped())
 
+    def test_update_shutdown_waits_without_force_termination(self):
+        client = BackendClient(ROOT)
+        with patch.object(client, "_talk_py", return_value={"ok": True, "processId": 321}), \
+                patch.object(client, "wait_until_stopped", return_value=False) as wait:
+            self.assertEqual(client.shutdown(False, "nic", graceful=True)["error"], "BackendStopTimeout")
+            wait.assert_called_once_with(321, force=False)
+        with patch("gui.bridge.client.process_running", return_value=True), \
+                patch("gui.bridge.client.terminate_process") as terminate:
+            self.assertFalse(client.wait_until_stopped(321, timeout=0, force=False))
+            terminate.assert_not_called()
+
+    def test_idle_update_succeeds_when_backend_is_already_absent(self):
+        client = BackendClient(ROOT)
+        with patch.object(client, "_talk_py", return_value={"ok": False, "error": "BackendUnavailable"}), \
+                patch.object(client, "ensure_started") as start:
+            result = client.shutdown(False, "nic", graceful=True)
+            self.assertTrue(result["ok"])
+            start.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

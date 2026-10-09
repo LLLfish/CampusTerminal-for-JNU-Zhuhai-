@@ -198,6 +198,16 @@ SET_IP_SHIFT = 373.05
 SET_IP_BOX = (SET_NIC_BOX[0], SET_TYPE_BOX[1], SET_NIC_BOX[2], 327.78, 81.94)
 SET_H += SET_IP_SHIFT
 
+# Update card follows connection type; grow the automatic-actions card for its
+# final opt-in checkbox. Keep all coordinates in the existing design space.
+SET_UPDATE_SHIFT = 373.05
+SET_UPDATE_BOX = (SET_AUTO_BOX[0], SET_AUTO_BOX[1] + SET_IP_SHIFT,
+                  SET_AUTO_BOX[2], 327.78, 81.94)
+SET_AUTOS.append((SET_AUTOS[-1][0], SET_AUTOS[-1][1] + 114.85,
+                  "每次启动自动检查更新", "auto_check_update"))
+SET_AUTO_BOX = (*SET_AUTO_BOX[:3], SET_AUTO_BOX[3] + 114.85, SET_AUTO_BOX[4])
+SET_H += SET_UPDATE_SHIFT + 114.85
+
 C_OUTER = QColor("#444444")
 C_INNER = QColor("#242424")
 C_CARD = QColor("#181818")

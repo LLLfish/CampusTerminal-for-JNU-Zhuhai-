@@ -67,6 +67,7 @@ foreach($name in @('Supervise-Observation.ps1','Watch-Network.ps1','Invoke-INode
     Copy-Item -LiteralPath (Join-Path $repo $name) -Destination $out
 }
 Copy-Item -LiteralPath (Join-Path $pack 'README.txt'),(Join-Path $pack 'Remove-Installation.ps1') -Destination $out
+Copy-Item -LiteralPath (Join-Path $pack 'Apply-Update.ps1') -Destination $out
 Copy-Item -LiteralPath (Join-Path $repo 'licenses') -Destination $out -Recurse
 Set-Content -LiteralPath (Join-Path $out 'CampusTerminal.portable') -Value 'CampusTerminal portable' -Encoding ascii
 Set-Content -LiteralPath (Join-Path $out 'edition.txt') -Value 'portable' -Encoding ascii

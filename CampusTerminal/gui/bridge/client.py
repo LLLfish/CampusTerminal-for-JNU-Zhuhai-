@@ -215,7 +215,7 @@ class BackendClient:
     def configure(self, options):
         return self._talk_py({"id": 5, "method": "configure", "options": options})
 
-    def wait_until_stopped(self, pid=None, timeout=10):
+    def wait_until_stopped(self, pid=None, timeout=10, force=True):
         pid = pid or self.last_pid
         child = self.process
         if not pid and child is None:
@@ -227,6 +227,8 @@ class BackendClient:
                 self.process = None
                 return True
             time.sleep(.15)
+        if not force:
+            return False
         if process_running(pid):
             terminate_process(pid)
             time.sleep(.3)
@@ -239,7 +241,7 @@ class BackendClient:
         self.process = None
         return not process_running(pid) and (child is None or child.poll() is not None)
 
-    def shutdown(self, handoff=False, adapter=""):
+    def shutdown(self, handoff=False, adapter="", graceful=False):
         if handoff:
             # Exit must not resurrect a missing backend and start a new handoff.
             current = self.status()
@@ -252,8 +254,12 @@ class BackendClient:
         if result.get("ok") and result.get("processId"):
             self.last_pid = result["processId"]
         if not handoff:
-            if not self.wait_until_stopped(result.get("processId") or self.last_pid):
+            pid = result.get("processId") or self.last_pid
+            stopped = self.wait_until_stopped(pid, force=False) if graceful else self.wait_until_stopped(pid)
+            if not stopped:
                 return {"ok": False, "error": "BackendStopTimeout", "processId": self.last_pid}
+            if graceful and result.get("error") == "BackendUnavailable":
+                return {"ok": True, "active": False, "pending": False}
         elif self.process is not None and result.get("ok") and not result.get("pending"):
             try:
                 self.process.wait(timeout=5)

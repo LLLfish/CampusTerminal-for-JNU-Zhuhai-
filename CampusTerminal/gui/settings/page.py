@@ -8,6 +8,7 @@ from gui.settings.auto_block import AutoBlock
 from gui.settings.nic_block import NicBlock
 from gui.settings.ip_block import IpBlock
 from gui.settings.type_block import TypeBlock
+from gui.settings.update_block import UpdateBlock
 from gui.shell.resizable import DesignLayout, ResizableWindow
 from gui.widgets.paint import draw_glyphs, fill_round, prepare
 
@@ -26,6 +27,7 @@ class SettingsPage(ResizableWindow):
     adapter_changed = pyqtSignal(str)
     type_changed = pyqtSignal(str)
     option_changed = pyqtSignal(str, bool)
+    check_update = pyqtSignal()
 
     def __init__(self, scale, family, parent=None):
         super().__init__(parent)
@@ -40,14 +42,17 @@ class SettingsPage(ResizableWindow):
         self.nic = NicBlock(scale, family, (0, 0), self.content)
         self.ip = IpBlock(scale, family, self.content)
         self.types = TypeBlock(scale, family, self.content)
+        self.updates = UpdateBlock(scale, family, self.content)
         self.autos = AutoBlock(scale, family, self.content)
         for block in (self.types, self.autos):
             block.move(block.x(), block.y() + round(T.SET_IP_SHIFT * scale))
+        self.autos.move(self.autos.x(), self.autos.y() + round(T.SET_UPDATE_SHIFT * scale))
         self.back_hit = BackHit(scale, family, self.content)
         self.back_hit.clicked.connect(self.back)
         self.nic.adapter_changed.connect(self.adapter_changed)
         self.types.type_changed.connect(self.type_changed)
         self.autos.option_changed.connect(self.option_changed)
+        self.updates.check_requested.connect(self.check_update)
         self.close_button = QPushButton(self)
         self.close_button.setIcon(QIcon(str(T.ICONS / "chrome/close.png")))
         side = max(24, round(105 * scale))

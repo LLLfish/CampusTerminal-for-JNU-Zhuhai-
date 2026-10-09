@@ -124,6 +124,7 @@ class NoticeOverlay(QWidget):
         self.body.setGeometry(x + inner_left, y + pad + title_h + gap, text_w, body_h)
         self.ok.setVisible(confirm)
         self.extra.setVisible(confirm and extra)
+        self.extra.setText("下载并安装" if self.notice and self.notice.action == "install-update" else "安装学校官方客户端")
         if confirm:
             self.ok.setGeometry(x + w - pad - btn_w, y + h - pad - btn_h, btn_w, btn_h)
             if extra:

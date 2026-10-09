@@ -16,6 +16,7 @@ from gui.bridge.original import gui_running as original_running, present as orig
 from gui.bridge.paths import diagnose, frozen, install_root
 from gui.bridge.client import BackendClient
 from gui.bridge.worker import BackendWorker
+from gui.bridge.update_service import UpdateController
 from gui.bridge.local_net import ConnectionAddressRefresh, TrafficSampler, adapter_ipv4, alternative_path, list_adapters, path_census
 from gui.bridge.messages import error_text
 from gui.bridge.auto_policy import (
@@ -170,6 +171,8 @@ def _main_impl(cleanup):
             setup = root / "payload" / "iNodeSetup.exe"
             if setup.is_file():
                 QDesktopServices.openUrl(QUrl.fromLocalFile(str(setup)))
+        elif act == "install-update":
+            updater.accept()
 
     def selected():
         return next((a for a in adapters if a["label"] == window.settings.nic.combo.currentText()), None)
@@ -224,6 +227,17 @@ def _main_impl(cleanup):
                        campaign_id=runtime["campaign_id"] or None, outcome="entered", reason=reason)
 
     def completed(method, result):
+        if method == "shutdown" and runtime.get("updating") and not result.get("ok"):
+            from gui.bridge.update import cancel_update
+            try:
+                cancel_update(runtime["update_plan"])
+            except OSError:
+                pass  # Helper also waits for this GUI to exit and has a timeout.
+            runtime["updating"] = False
+            runtime["quit"] = False
+            runtime["quit_pending"] = False
+            updater.shutdown_failed()
+            return
         if method == "shutdown" and result.get("error") in ("BackendUnavailable", "BackendStopTimeout") and not data.get("inode_fallback"):
             result = {"ok": True, "pending": False}
         if result.get("ok"):
@@ -398,7 +412,10 @@ def _main_impl(cleanup):
         if runtime["quit"]:
             if not runtime["quit_pending"]:
                 nic = selected()
-                backend.submit("shutdown", bool(data.get("inode_fallback")), nic["id"] if nic else "")
+                if runtime.get("updating"):
+                    backend.submit("shutdown", False, nic["id"] if nic else "", True)
+                else:
+                    backend.submit("shutdown", bool(data.get("inode_fallback")), nic["id"] if nic else "")
         elif runtime["disconnect"]:
             runtime["disconnect"] = False
             backend.submit("disconnect")
@@ -655,6 +672,20 @@ def _main_impl(cleanup):
             tray.hide()
         pump()
 
+    def begin_update(plan_path):
+        from gui.bridge.update import launch_update
+        if runtime["closing"] or runtime["quit"]:
+            raise OSError("Application is already closing")
+        _collect(window, data)
+        launch_update(plan_path)
+        runtime["update_plan"] = plan_path
+        runtime["updating"] = True
+        runtime["quit"] = True
+        runtime["auto_due"] = False
+        pump()
+
+    updater = UpdateController(window, alerts, root, begin_update)
+    cleanup.append(updater.close)
     apply_original_features()
     window.notice.action_requested.connect(on_notice_action)
     backend.completed.connect(completed)
@@ -731,6 +762,7 @@ def _main_impl(cleanup):
         if runtime["closing"]:
             return
         runtime["closing"] = True
+        updater.close()
         timer.stop()
         pulse.stop()
         watchdog.close()
@@ -741,6 +773,7 @@ def _main_impl(cleanup):
         window.home.login.password.editingFinished.disconnect(persist_login)
     app.aboutToQuit.connect(stop_ui_callbacks)
     timer.start()
+    updater.schedule_startup(bool(data.get("auto_check_update")), preview)
     if not preview and runtime["auto_due"]:
         QTimer.singleShot(0, tick)
     if show_main_on_launch(silent_launch, tray is not None, False):
