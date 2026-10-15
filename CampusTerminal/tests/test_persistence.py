@@ -87,6 +87,15 @@ class PersistenceTests(unittest.TestCase):
         store.save({**store.load(), "auto_check_update": False})
         self.assertFalse(store.load()["auto_check_update"])
 
+    def test_update_install_and_ignore_preferences_default_off(self):
+        data = store.load()
+        self.assertFalse(data["auto_update"])
+        self.assertEqual(data["ignored_version"], "")
+        store.save({**data, "auto_update": True, "ignored_version": "1.2.3"})
+        saved = store.load()
+        self.assertTrue(saved["auto_update"])
+        self.assertEqual(saved["ignored_version"], "1.2.3")
+
     def test_old_settings_without_update_preference_stay_opted_out(self):
         store.SETTINGS_PATH.write_bytes(store._protect(json.dumps({"account": "legacy", "save_account": True})))
         data = store.load()

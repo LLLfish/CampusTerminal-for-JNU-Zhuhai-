@@ -10,6 +10,7 @@ from gui.settings.ip_block import IpBlock
 from gui.settings.type_block import TypeBlock
 from gui.settings.update_block import UpdateBlock
 from gui.shell.resizable import DesignLayout, ResizableWindow
+from gui.shell.update_log import UpdateLog
 from gui.widgets.paint import draw_glyphs, fill_round, prepare
 
 
@@ -28,6 +29,7 @@ class SettingsPage(ResizableWindow):
     type_changed = pyqtSignal(str)
     option_changed = pyqtSignal(str, bool)
     check_update = pyqtSignal()
+    log_requested = pyqtSignal()
 
     def __init__(self, scale, family, parent=None):
         super().__init__(parent)
@@ -43,16 +45,21 @@ class SettingsPage(ResizableWindow):
         self.ip = IpBlock(scale, family, self.content)
         self.types = TypeBlock(scale, family, self.content)
         self.updates = UpdateBlock(scale, family, self.content)
+        self.update_log = UpdateBlock(scale, family, self.content, kind="log")
         self.autos = AutoBlock(scale, family, self.content)
         for block in (self.types, self.autos):
             block.move(block.x(), block.y() + round(T.SET_IP_SHIFT * scale))
-        self.autos.move(self.autos.x(), self.autos.y() + round(T.SET_UPDATE_SHIFT * scale))
+        self.autos.move(self.autos.x(),
+                        self.autos.y() + round((T.SET_UPDATE_SHIFT + T.SET_LOG_SHIFT) * scale))
         self.back_hit = BackHit(scale, family, self.content)
         self.back_hit.clicked.connect(self.back)
         self.nic.adapter_changed.connect(self.adapter_changed)
         self.types.type_changed.connect(self.type_changed)
         self.autos.option_changed.connect(self.option_changed)
         self.updates.check_requested.connect(self.check_update)
+        self.update_log.log_requested.connect(self.log_requested)
+        self.log_card = UpdateLog(self)
+        self.log_card.setGeometry(self.rect())
         self.close_button = QPushButton(self)
         self.close_button.setIcon(QIcon(str(T.ICONS / "chrome/close.png")))
         side = max(24, round(105 * scale))
@@ -74,6 +81,7 @@ class SettingsPage(ResizableWindow):
         w, h = round(T.SET_W * self.scale), round(T.SET_H * self.scale)
         self.content.setGeometry((self.width() - w) // 2, (self.height() - h) // 2, w, h)
         self._layout.apply(self.scale)
+        self.log_card.setGeometry(self.rect())
         side = max(24, round(105 * self.scale))
         margin = max(8, round(45 * self.scale))
         self.close_button.setGeometry(self.width() - side - margin, margin, side, side)
@@ -87,6 +95,9 @@ class SettingsPage(ResizableWindow):
             event.accept()
             return
         super().keyPressEvent(event)
+
+    def show_update_log(self, sections):
+        self.log_card.show_log(sections)
 
     def closeEvent(self, event):
         self.back.emit()

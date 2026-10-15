@@ -773,7 +773,8 @@ def _main_impl(cleanup):
         window.home.login.password.editingFinished.disconnect(persist_login)
     app.aboutToQuit.connect(stop_ui_callbacks)
     timer.start()
-    updater.schedule_startup(bool(data.get("auto_check_update")), preview)
+    updater.schedule_startup(bool(data.get("auto_check_update")), bool(data.get("auto_update")),
+                            str(data.get("ignored_version") or ""), preview)
     if not preview and runtime["auto_due"]:
         QTimer.singleShot(0, tick)
     if show_main_on_launch(silent_launch, tray is not None, False):

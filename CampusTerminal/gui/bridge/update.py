@@ -362,3 +362,88 @@ def launch_update(plan_path):
                "-WindowStyle", "Hidden", "-File", str(helper), "-Plan", str(plan_path)]
     return subprocess.Popen(command, close_fds=True, creationflags=getattr(subprocess, "DETACHED_PROCESS", 0) |
                             getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
+
+
+EMPTY_NOTES = "该版本未提供更新说明。"
+_NOTES_HEADING = re.compile(r"(?m)^##\s*更新\s*$")
+_NEXT_HEADING = re.compile(r"(?m)^##(?!#)[ \t]*\S")
+_FIXES_HEADING = re.compile(r"(?m)^##[ \t]*修复[ \t]*$")
+
+
+def parse_version(text):
+    """Return a (major, minor, patch) tuple for a stable version, else None."""
+    return _version(text)
+
+
+def format_version(version):
+    if not version:
+        return ""
+    return ".".join(str(part) for part in version)
+
+
+def update_notes(markdown):
+    """Extract the 更新 section of release notes, keeping an adjacent 修复 section."""
+    if not markdown:
+        return ""
+    text = str(markdown).replace("\r\n", "\n").replace("\r", "\n")
+    match = _NOTES_HEADING.search(text)
+    if not match:
+        return ""
+    rest = text[match.end():]
+    if rest.startswith("\n"):
+        rest = rest[1:]
+    following = _NEXT_HEADING.search(rest)
+    if following:
+        fixes = _FIXES_HEADING.match(rest, following.start())
+        if fixes:
+            following = _NEXT_HEADING.search(rest, fixes.end())
+    body = rest[:following.start()] if following else rest
+    return body.strip()
+
+
+def release_notes(version):
+    """Return a released version's notes through the tag API, or '' when unavailable."""
+    parsed = _version(version)
+    if parsed is None:
+        return ""
+    text = format_version(parsed)
+    tag = "v" + text
+    url = f"https://api.github.com/repos/{REPOSITORY}/releases/tags/{tag}"
+    headers = {"Accept": "application/vnd.github+json", "User-Agent": "CampusTerminal-Updater"}
+    try:
+        metadata = json.loads(_read_url(url, limit=2 * 1024 * 1024, headers=headers,
+                                        allowed_hosts=_API_HOSTS))
+    except (OSError, ValueError, KeyError, TypeError, urllib.error.URLError, json.JSONDecodeError):
+        return ""
+    if not isinstance(metadata, dict) or metadata.get("draft") or metadata.get("prerelease"):
+        return ""
+    if metadata.get("tag_name") not in (tag, text):
+        return ""
+    notes = ""
+    assets = metadata.get("assets")
+    if isinstance(assets, list):
+        for asset in assets:
+            if not isinstance(asset, dict) or asset.get("name") != "README.md":
+                continue
+            asset_url = asset.get("browser_download_url", "")
+            parsed_url = urllib.parse.urlparse(asset_url or "")
+            expected_path = f"/{REPOSITORY}/releases/download/{tag}/README.md"
+            if (parsed_url.scheme != "https" or parsed_url.hostname != "github.com" or
+                    parsed_url.path != expected_path or parsed_url.port not in (None, 443) or
+                    parsed_url.username or parsed_url.password):
+                break
+            digest = asset.get("digest")
+            digest = digest.removeprefix("sha256:") if isinstance(digest, str) else None
+            try:
+                blob = _read_url(asset_url, limit=512 * 1024,
+                                 headers={"User-Agent": "CampusTerminal-Updater"},
+                                 allowed_hosts=_ASSET_HOSTS)
+            except (OSError, ValueError, urllib.error.URLError):
+                break
+            if digest and hashlib.sha256(blob).hexdigest() != digest.lower():
+                break
+            notes = update_notes(blob.decode("utf-8", "replace"))
+            break
+    if not notes:
+        notes = update_notes(metadata.get("body") or "")
+    return notes

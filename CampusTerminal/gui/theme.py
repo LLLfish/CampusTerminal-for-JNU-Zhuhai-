@@ -206,7 +206,17 @@ SET_UPDATE_BOX = (SET_AUTO_BOX[0], SET_AUTO_BOX[1] + SET_IP_SHIFT,
 SET_AUTOS.append((SET_AUTOS[-1][0], SET_AUTOS[-1][1] + 114.85,
                   "每次启动自动检查更新", "auto_check_update"))
 SET_AUTO_BOX = (*SET_AUTO_BOX[:3], SET_AUTO_BOX[3] + 114.85, SET_AUTO_BOX[4])
+SET_AUTOS.append((SET_AUTOS[-1][0], SET_AUTOS[-1][1] + 114.85,
+                  "发现新版本后自动更新并重启", "auto_update"))
+SET_AUTO_BOX = (*SET_AUTO_BOX[:3], SET_AUTO_BOX[3] + 114.85, SET_AUTO_BOX[4])
 SET_H += SET_UPDATE_SHIFT + 114.85
+
+# Changelog card below the update check card; grow the automatic-actions card
+# for the second update opt-in checkbox. Keep coordinates in the design space.
+SET_LOG_SHIFT = 373.05
+SET_LOG_BOX = (SET_AUTO_BOX[0], SET_AUTO_BOX[1] + SET_IP_SHIFT + SET_UPDATE_SHIFT,
+               SET_AUTO_BOX[2], 327.78, 81.94)
+SET_H += SET_LOG_SHIFT + 114.85
 
 C_OUTER = QColor("#444444")
 C_INNER = QColor("#242424")

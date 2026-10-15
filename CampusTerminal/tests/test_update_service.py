@@ -77,6 +77,13 @@ class ServiceTests(unittest.TestCase):
         self.assertTrue(spy[0][2])
         self.assertFalse(self.service.busy)
 
+    def test_notes_lookup_reports_empty_notes_without_raising(self):
+        spy = QSignalSpy(self.service.notes_ready)
+        with patch("gui.bridge.update.release_notes", return_value=""):
+            self.assertTrue(self.service.notes("9.9.9"))
+            until(lambda: len(spy) == 1)
+        self.assertEqual(list(spy[0]), ["9.9.9", ""])
+
 
 class ControllerTests(unittest.TestCase):
     def setUp(self):
@@ -139,19 +146,58 @@ class ControllerTests(unittest.TestCase):
         self.install.assert_not_called()
         self.assertFalse(self.controller.installing)
 
+    def test_ignored_version_suppresses_the_offer(self):
+        self.controller.ignored_version = "999.1.0"
+        with patch("gui.bridge.update_service.frozen", return_value=True):
+            self.controller._checked(True, {"version": "999.0.9"}, "")
+        self.alerts.deliver.assert_not_called()
+        self.assertEqual(self.window.settings.updates.button.text(), "当前已是最新版本")
+
+    def test_auto_update_installs_without_waiting_for_a_click(self):
+        self.controller.auto_install = True
+        with patch("gui.bridge.update_service.frozen", return_value=True):
+            self.controller._checked(False, {"version": "999.1.0"}, "")
+        self.controller.service.prepare.assert_called_once_with({"version": "999.1.0"})
+        self.alerts.deliver.assert_not_called()
+
+    def test_changelog_lists_offered_version_before_running_version(self):
+        self.controller.release = {"version": "999.1.0"}
+        self.controller.open_log()
+        self.assertEqual(self.controller.service.notes.call_count, 2)
+        self.controller._notes_ready("999.1.0", "新功能")
+        self.controller._notes_ready(theme.APP_VERSION, "旧功能")
+        headings = [heading for heading, _notes in self.controller._log_sections]
+        self.assertEqual(headings, ["新版本 V999.1.0", "当前版本 V" + theme.APP_VERSION])
+        text = self.window.settings.log_card.body.text()
+        self.assertIn("新功能", text)
+        self.assertIn("旧功能", text)
+        self.assertLess(text.index("新功能"), text.index("旧功能"))
+
+    def test_changelog_falls_back_when_notes_are_missing(self):
+        self.controller.open_log()
+        self.controller._notes_ready(theme.APP_VERSION, "")
+        self.assertIn("该版本未提供更新说明。", self.window.settings.log_card.body.text())
+
+    def test_changelog_row_opens_the_card(self):
+        self.controller.service.notes.return_value = True
+        self.window.settings.update_log.button.click()
+        self.assertTrue(self.controller.service.notes.called)
+
     def test_settings_geometry_order_and_opt_in_survive_resize(self):
         settings = self.window.settings
-        settings.autos.set_options({"auto_check_update": True})
+        settings.autos.set_options({"auto_check_update": True, "auto_update": True})
         for width, height in ((300, 560), (600, 700), (350, 750)):
             settings.resize(width, height)
             APP.processEvents()
-            blocks = (settings.nic, settings.ip, settings.types, settings.updates, settings.autos)
+            blocks = (settings.nic, settings.ip, settings.types, settings.updates,
+                      settings.update_log, settings.autos)
             for above, below in zip(blocks, blocks[1:]):
                 self.assertLess(above.geometry().bottom(), below.geometry().top())
             for block in blocks:
                 self.assertTrue(settings.content.rect().contains(block.geometry()))
             self.assertTrue(settings.autos.toggles["auto_check_update"].isChecked())
-        self.assertEqual(list(settings.autos.toggles)[-1], "auto_check_update")
+            self.assertTrue(settings.autos.toggles["auto_update"].isChecked())
+        self.assertEqual(list(settings.autos.toggles)[-1], "auto_update")
 
 
 if __name__ == "__main__":
