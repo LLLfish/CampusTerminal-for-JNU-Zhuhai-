@@ -39,7 +39,7 @@ INNER = (467.96 - OX, 512.44 - OY, 2020.97, 3068.95, 104.02)
 BANNER = (597.88 - OX, 0.0, 681.61, 76.18, 19.04)
 TITLE = (633.39 - OX, 520.03 - OY)
 VERSION = (1119.32 - OX, 518.51 - OY)
-APP_VERSION = "1.3.19"
+APP_VERSION = "1.4.1"
 
 
 def _w(items):
@@ -198,25 +198,27 @@ SET_IP_SHIFT = 373.05
 SET_IP_BOX = (SET_NIC_BOX[0], SET_TYPE_BOX[1], SET_NIC_BOX[2], 327.78, 81.94)
 SET_H += SET_IP_SHIFT
 
-# Update card follows connection type; grow the automatic-actions card for its
-# final opt-in checkbox. Keep all coordinates in the existing design space.
+# The update rows and cards. The automatic-actions card takes two extra opt-in
+# checkboxes; two update cards sit between the connection type and that card.
+SET_UPDATE_ROW = 114.85
+SET_AUTOS.append((SET_AUTOS[-1][0], SET_AUTOS[-1][1] + SET_UPDATE_ROW,
+                  "每次启动自动检查更新", "auto_check_update"))
+SET_AUTOS.append((SET_AUTOS[-1][0], SET_AUTOS[-1][1] + SET_UPDATE_ROW,
+                  "发现新版本后自动更新并重启", "auto_update"))
+SET_AUTO_EXTRA = 2 * SET_UPDATE_ROW + 15
+SET_AUTO_BOX = (SET_AUTO_BOX[0], SET_AUTO_BOX[1], SET_AUTO_BOX[2],
+                SET_AUTO_BOX[3] + SET_AUTO_EXTRA, SET_AUTO_BOX[4])
+SET_H += SET_AUTO_EXTRA
+
 SET_UPDATE_SHIFT = 373.05
 SET_UPDATE_BOX = (SET_AUTO_BOX[0], SET_AUTO_BOX[1] + SET_IP_SHIFT,
                   SET_AUTO_BOX[2], 327.78, 81.94)
-SET_AUTOS.append((SET_AUTOS[-1][0], SET_AUTOS[-1][1] + 114.85,
-                  "每次启动自动检查更新", "auto_check_update"))
-SET_AUTO_BOX = (*SET_AUTO_BOX[:3], SET_AUTO_BOX[3] + 114.85, SET_AUTO_BOX[4])
-SET_AUTOS.append((SET_AUTOS[-1][0], SET_AUTOS[-1][1] + 114.85,
-                  "发现新版本后自动更新并重启", "auto_update"))
-SET_AUTO_BOX = (*SET_AUTO_BOX[:3], SET_AUTO_BOX[3] + 114.85, SET_AUTO_BOX[4])
-SET_H += SET_UPDATE_SHIFT + 114.85
 
-# Changelog card below the update check card; grow the automatic-actions card
-# for the second update opt-in checkbox. Keep coordinates in the design space.
+# Changelog card below the update check card. Keep coordinates in the design space.
 SET_LOG_SHIFT = 373.05
 SET_LOG_BOX = (SET_AUTO_BOX[0], SET_AUTO_BOX[1] + SET_IP_SHIFT + SET_UPDATE_SHIFT,
                SET_AUTO_BOX[2], 327.78, 81.94)
-SET_H += SET_LOG_SHIFT + 114.85
+SET_H += SET_UPDATE_SHIFT + SET_LOG_SHIFT
 
 C_OUTER = QColor("#444444")
 C_INNER = QColor("#242424")

@@ -6,7 +6,7 @@ from PyQt5.QtGui import QColor, QPainter, QPainterPath
 from PyQt5.QtWidgets import QGraphicsOpacityEffect, QLabel, QPushButton, QWidget
 
 from gui import theme as T
-from gui.shell.notifications import is_confirm, remind_ms
+from gui.shell.notifications import dismisses_itself, is_confirm, remind_ms, toast_ms
 from gui.widgets.paint import prepare
 
 
@@ -81,7 +81,7 @@ class NoticeOverlay(QWidget):
             self._layout_card()
 
     def mousePressEvent(self, event):
-        if self.notice is not None and not is_confirm(self.notice):
+        if self.notice is not None and dismisses_itself(self.notice):
             self._dismiss()
             event.accept()
             return
@@ -124,7 +124,6 @@ class NoticeOverlay(QWidget):
         self.body.setGeometry(x + inner_left, y + pad + title_h + gap, text_w, body_h)
         self.ok.setVisible(confirm)
         self.extra.setVisible(confirm and extra)
-        self.extra.setText("下载并安装" if self.notice and self.notice.action == "install-update" else "安装学校官方客户端")
         if confirm:
             self.ok.setGeometry(x + w - pad - btn_w, y + h - pad - btn_h, btn_w, btn_h)
             if extra:
@@ -189,7 +188,8 @@ class NoticeOverlay(QWidget):
             self._fading_out = False
             self._fx.setOpacity(0)
             return
-        if self.notice is not None and not is_confirm(self.notice) and not self._life.isActive():
-            self._duration = max(0.2, remind_ms(self.notice) / 1000)
+        if self.notice is not None and dismisses_itself(self.notice) and not self._life.isActive():
+            duration_ms = toast_ms(self.notice) if getattr(self.notice, "kind", "") == "progress" else remind_ms(self.notice)
+            self._duration = max(0.2, duration_ms / 1000)
             self._started = monotonic()
             self._life.start(16)

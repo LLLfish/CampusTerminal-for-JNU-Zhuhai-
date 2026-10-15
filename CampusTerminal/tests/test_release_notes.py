@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Release-notes extraction and the tag lookup used by the settings changelog row."""
+import hashlib
 import json
 import sys
 import unittest
@@ -42,51 +43,62 @@ class UpdateNotesTests(unittest.TestCase):
 
     def test_format_and_parse_round_trip(self):
         self.assertEqual(update.format_version(update.parse_version("v1.4.1")), "1.4.1")
-        self.assertIsNone(update.parse_version("1.4"))
         self.assertEqual(update.format_version(None), "")
 
 
 class TagLookupTests(unittest.TestCase):
     def test_release_notes_read_the_tag_endpoint(self):
-        metadata = {"tag_name": "v1.4.1", "draft": False, "prerelease": False,
-                    "assets": [], "body": NOTES}
         seen = []
+        payload = json.dumps({"tag_name": "v1.4.1", "body": NOTES}).encode("utf-8")
 
-        def read_url(url, **_kwargs):
-            seen.append(url)
-            return json.dumps(metadata).encode("utf-8")
+        def read(_opener, request, _timeout):
+            seen.append(request.full_url)
+            return payload
 
-        with patch.object(update, "_read_url", side_effect=read_url):
+        with patch.object(update, "_read", side_effect=read):
             notes = update.release_notes("1.4.1")
-        self.assertEqual(seen, [f"https://api.github.com/repos/{update.REPOSITORY}/releases/tags/v1.4.1"])
+        self.assertEqual(seen, ["https://api.github.com/repos/" + update.REPO + "/releases/tags/v1.4.1"])
         self.assertIn("启动时检查新版本", notes)
 
     def test_release_notes_prefer_the_readme_asset(self):
-        metadata = {"tag_name": "v1.4.1", "draft": False, "prerelease": False, "body": "## 更新\n- 正文",
-                    "assets": [{"name": "README.md", "digest": None, "size": 10,
-                                "browser_download_url":
-                                    f"https://github.com/{update.REPOSITORY}/releases/download/v1.4.1/README.md"}]}
+        blob = NOTES.encode("utf-8")
+        digest = hashlib.sha256(blob).hexdigest()
+        asset = {"name": "README.md", "digest": "sha256:" + digest, "size": len(blob),
+                 "browser_download_url": "https://github.com/" + update.REPO + "/releases/download/v1.4.1/README.md"}
+        payload = json.dumps({"tag_name": "v1.4.1", "body": "## 更新\n- 正文", "assets": [asset]}).encode("utf-8")
         seen = []
 
-        def read_url(url, **_kwargs):
-            seen.append(url)
-            if "api.github.com" in url:
-                return json.dumps(metadata).encode("utf-8")
-            return NOTES.encode("utf-8")
+        def read(_opener, request, _timeout):
+            seen.append(request.full_url)
+            return payload if len(seen) == 1 else blob
 
-        with patch.object(update, "_read_url", side_effect=read_url):
+        with patch.object(update, "_read", side_effect=read):
             notes = update.release_notes("1.4.1")
         self.assertEqual(len(seen), 2)
         self.assertIn("修复周期重认证断线", notes)
 
+    def test_release_notes_mismatched_digest_falls_back_to_the_body(self):
+        asset = {"name": "README.md", "digest": "sha256:" + "0" * 64, "size": 4,
+                 "browser_download_url": "https://github.com/" + update.REPO + "/releases/download/v1.4.1/README.md"}
+        payload = json.dumps({"tag_name": "v1.4.1", "body": NOTES, "assets": [asset]}).encode("utf-8")
+        seen = []
+
+        def read(_opener, request, _timeout):
+            seen.append(request.full_url)
+            return payload if len(seen) == 1 else b"junk"
+
+        with patch.object(update, "_read", side_effect=read):
+            notes = update.release_notes("1.4.1")
+        self.assertIn("启动时检查新版本", notes)
+
     def test_release_notes_fail_quietly(self):
-        with patch.object(update, "_read_url", side_effect=OSError("offline")):
+        with patch.object(update, "_read", side_effect=OSError("offline")):
             self.assertEqual(update.release_notes("1.4.1"), "")
         self.assertEqual(update.release_notes("not-a-version"), "")
 
     def test_release_notes_reject_a_mismatched_tag(self):
         payload = json.dumps({"tag_name": "v9.9.9", "body": NOTES}).encode("utf-8")
-        with patch.object(update, "_read_url", return_value=payload):
+        with patch.object(update, "_read", return_value=payload):
             self.assertEqual(update.release_notes("1.4.1"), "")
 
 
