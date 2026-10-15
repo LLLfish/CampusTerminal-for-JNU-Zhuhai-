@@ -25,7 +25,10 @@ class UpdateLog(QWidget):
         self.scroll.setWidgetResizable(True)
         self.scroll.setFrameShape(QScrollArea.NoFrame)
         self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+        self.scroll.setStyleSheet(
+            "QScrollArea, QScrollArea > QWidget, QScrollArea > QWidget > QWidget "
+            "{ background: transparent; border: none; }")
+        self.body.setStyleSheet("background: transparent;")
         self.close_btn = QPushButton("关闭", self)
         self.close_btn.setCursor(Qt.PointingHandCursor)
         self.close_btn.setStyleSheet(
